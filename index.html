@@ -530,7 +530,7 @@
   }
 
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 <!-- PASSWORD SCREEN -->
@@ -546,13 +546,13 @@
 </div>
 <script>
   (function() {
-    if (sessionStorage.getItem('pmicu_auth') === 'yes') {
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('pmicu_auth') === 'yes') {
       document.getElementById('password-screen').style.display = 'none';
     }
     function checkPassword() {
       var val = document.getElementById('pw-input').value;
       if (val === 'Physical and Virtual') {
-        sessionStorage.setItem('pmicu_auth', 'yes');
+        try { sessionStorage.setItem('pmicu_auth', 'yes'); } catch(e) {}
         document.getElementById('password-screen').style.display = 'none';
       } else {
         var err = document.getElementById('pw-error');
@@ -909,7 +909,7 @@ async function loadStore() {
     setSyncStatus('offline');
     console.error('[PMICU] loadStore error:', e.message);
     showToast('[!] Could not load from JSONBin: ' + e.message);
-    const raw = localStorage.getItem('tt_store');
+    const raw = safeStorage(() => localStorage.getItem('tt_store'));
     return raw ? JSON.parse(raw) : { tasks: [], nextId: 1 };
   }
 }
@@ -949,7 +949,7 @@ async function _doSave(localStore, changeType, payload) {
     if (!res.ok) throw new Error(`JSONBin write failed: ${res.status}`);
 
     // 3. Keep localStorage as offline backup
-    localStorage.setItem('tt_store', JSON.stringify(merged));
+    safeStorage(() => localStorage.setItem('tt_store', JSON.stringify(merged)));
     setSyncStatus('ok');
     STORE = merged;
     render();
@@ -1385,16 +1385,17 @@ function showToast(msg, duration = 3500) {
 }
 
 // -------- Settings: users, emails, identity --------
-function getMyName() { return localStorage.getItem('tt_identity') || ''; }
+function safeStorage(fn) { try { return fn(); } catch(e) { return null; } }
+function getMyName() { return safeStorage(() => localStorage.getItem('tt_identity')) || ''; }
 function getNotifSettings() {
-  try { return JSON.parse(localStorage.getItem('tt_notifs') || '{"new":true,"reassign":true,"overdue":true}'); }
+  try { return JSON.parse(safeStorage(() => localStorage.getItem('tt_notifs')) || '{"new":true,"reassign":true,"overdue":true}'); }
   catch { return {new:true,reassign:true,overdue:true}; }
 }
 
 // Get emails from STORE (shared) with localStorage fallback
 function getEmailMap() {
   if (STORE.emails && Object.keys(STORE.emails).length > 0) return STORE.emails;
-  try { return JSON.parse(localStorage.getItem('tt_emails') || '{}'); } catch { return {}; }
+  try { return JSON.parse(safeStorage(() => localStorage.getItem('tt_emails')) || '{}'); } catch { return {}; }
 }
 
 // Render Settings page dynamically based on STORE.users
@@ -1494,11 +1495,11 @@ document.getElementById('save-emails').addEventListener('click', async () => {
 });
 
 document.getElementById('save-notifs').addEventListener('click', () => {
-  localStorage.setItem('tt_notifs', JSON.stringify({
+  safeStorage(() => localStorage.setItem('tt_notifs', JSON.stringify({
     new:      document.getElementById('notif-new').checked,
     reassign: document.getElementById('notif-reassign').checked,
     overdue:  document.getElementById('notif-overdue').checked,
-  }));
+  })));
   const msg = document.getElementById('notif-saved-msg');
   msg.style.opacity = '1'; setTimeout(() => msg.style.opacity = '0', 2000);
   showToast('🔔 Notification settings saved');
@@ -1519,8 +1520,8 @@ document.getElementById('save-identity').addEventListener('click', () => {
       return;
     }
   }
-  if (name) localStorage.setItem('tt_identity', name);
-  else localStorage.removeItem('tt_identity');
+  if (name) safeStorage(() => localStorage.setItem('tt_identity', name));
+  else safeStorage(() => localStorage.removeItem('tt_identity'));
   const msg = document.getElementById('identity-saved-msg');
   msg.style.opacity = '1'; setTimeout(() => msg.style.opacity = '0', 2000);
   showToast(`👤 Identity set to ${name || 'Anonymous'}`);
