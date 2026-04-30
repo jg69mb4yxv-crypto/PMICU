@@ -1030,7 +1030,7 @@ function switchPage(name) {
   const order = ['tasks','report','settings'];
   tabs.forEach((t, i) => t.classList.toggle('active', order[i] === name));
   if (name === 'report') renderReport();
-  if (name === 'settings') { renderSettings(); // identity loaded inside renderSettings() }
+  if (name === 'settings') { renderSettings(); }
 }
 
 // -------- Helpers --------
