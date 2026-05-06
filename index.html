@@ -1,3 +1,4 @@
+
 <!doctype html>
 <!-- PMICU Task Tracker v2.1 -->
 <html lang="en">
@@ -612,6 +613,9 @@
       <div class="field" style="flex:1"><label>DUE DATE</label>
         <input id="m-due" type="date" />
       </div>
+      <div class="field" style="flex:1"><label>EST. TIME (hrs)</label>
+        <input id="m-est-time" type="number" min="0.25" step="0.25" placeholder="Optional" />
+      </div>
     </div>
     <div class="modal-btns modal-footer">
       <button class="btn-cancel" onclick="closeModal()">Cancel</button>
@@ -651,6 +655,7 @@
           <option value="high">High</option>
         </select>
         <input id="due" type="date" />
+        <input id="est-time" type="number" min="0.25" step="0.25" placeholder="Est. hrs (optional)" style="max-width:160px" />
         <button class="btn-add" id="add">+ Add Task</button>
       </div>
     </div>
@@ -1087,6 +1092,7 @@ function renderTasks() {
     const dueBadge = t.due ? `<span class="badge badge-due">📅 ${t.due}</span>` : '';
     const pBadge = `<span class="badge badge-${t.priority}">${t.priority.charAt(0).toUpperCase()+t.priority.slice(1)}</span>`;
     const editedBadge = t.updatedBy ? `<span class="badge" style="background:rgba(100,110,180,0.1);color:var(--muted);font-size:10px">✏ ${esc(t.updatedBy)}</span>` : '';
+    const estTimeBadge = t.estTime != null ? `<span class="badge" style="background:rgba(139,79,245,0.12);color:var(--accent-purple)">⏱ ${t.estTime}h</span>` : '';
     card.innerHTML = `
       <input type="checkbox" class="task-checkbox task-cb" data-id="${t.id}" title="Select task">
       <div class="task-main">
@@ -1094,7 +1100,7 @@ function renderTasks() {
         ${t.description ? `<div class="task-desc">${esc(t.description)}</div>` : ''}
         <div class="task-meta">
           ${t.assignee ? `<span class="badge badge-assignee">👤 ${esc(t.assignee)}</span>` : ''}
-          ${pBadge} ${dueBadge} ${overdueMark} ${editedBadge}
+          ${pBadge} ${dueBadge} ${estTimeBadge} ${overdueMark} ${editedBadge}
           ${t.statusChangedAt ? `<span class="badge" style="background:rgba(13,191,160,0.12);color:var(--done)" title="Status last changed">🕐 ${new Date(t.statusChangedAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</span>` : ''}
         </div>
       </div>
@@ -1160,6 +1166,7 @@ document.getElementById('add').addEventListener('click', async () => {
     assignee: document.getElementById('assignee').value,
     priority: document.getElementById('priority').value,
     due: document.getElementById('due').value || null,
+    estTime: document.getElementById('est-time').value ? parseFloat(document.getElementById('est-time').value) : null,
     status: 'todo',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -1174,6 +1181,7 @@ document.getElementById('add').addEventListener('click', async () => {
   document.getElementById('title').value = '';
   document.getElementById('assignee').value = '';
   document.getElementById('due').value = '';
+  document.getElementById('est-time').value = '';
   document.getElementById('priority').value = 'medium';
   render();
 });
@@ -1188,6 +1196,7 @@ document.getElementById('export').addEventListener('click', () => {
     'Assignee':          t.assignee || 'Unassigned',
     'Priority':          t.priority ? t.priority.charAt(0).toUpperCase() + t.priority.slice(1) : '',
     'Due Date':          t.due || '',
+    'Est. Time (hrs)':   t.estTime != null ? t.estTime : '',
     'Created':           t.createdAt ? t.createdAt.slice(0, 10) : '',
     'Last Updated':      t.updatedAt ? t.updatedAt.slice(0, 10) : '',
     'Status Changed':    t.statusChangedAt ? t.statusChangedAt.slice(0, 10) : '',
@@ -1203,7 +1212,7 @@ document.getElementById('export').addEventListener('click', () => {
   const ws = XLSX.utils.json_to_sheet(allRows);
   ws['!cols'] = [
     { wch: 14 }, { wch: 36 }, { wch: 48 }, { wch: 14 }, { wch: 10 },
-    { wch: 12 }, { wch: 12 }, { wch: 13 }, { wch: 14 }, { wch: 13 }, { wch: 12 }, { wch: 12 }
+    { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 13 }, { wch: 14 }, { wch: 13 }, { wch: 12 }, { wch: 12 }
   ];
 
   const wb = XLSX.utils.book_new();
@@ -1266,6 +1275,7 @@ function openModal(id) {
   document.getElementById('m-assignee').value = t.assignee || '';
   document.getElementById('m-priority').value = t.priority || 'medium';
   document.getElementById('m-due').value = t.due || '';
+  document.getElementById('m-est-time').value = t.estTime != null ? t.estTime : '';
   document.getElementById('editModal').classList.remove('hidden');
 }
 function closeModal() { document.getElementById('editModal').classList.add('hidden'); editingId = null; }
@@ -1280,6 +1290,7 @@ document.getElementById('m-save').addEventListener('click', async () => {
   t.assignee = document.getElementById('m-assignee').value;
   t.priority = document.getElementById('m-priority').value;
   t.due = document.getElementById('m-due').value || null;
+  t.estTime = document.getElementById('m-est-time').value ? parseFloat(document.getElementById('m-est-time').value) : null;
   t.updatedAt = new Date().toISOString();
   t.updatedBy = getMyName() || undefined;
   const savedTask = { ...t }; // snapshot before closeModal clears editingId
