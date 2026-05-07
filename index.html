@@ -145,7 +145,16 @@
     border-radius: var(--radius);
     padding: 20px 22px;
     position: relative; overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.2s, border-color 0.2s;
+    user-select: none;
   }
+  .stat-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.10); }
+  .stat-card.active-filter { border-color: rgba(0,0,0,0.22); box-shadow: 0 0 0 2px currentColor; }
+  .stat-card.blue.active-filter   { box-shadow: 0 0 0 2px var(--accent-blue); }
+  .stat-card.purple.active-filter { box-shadow: 0 0 0 2px var(--accent-purple); }
+  .stat-card.pink.active-filter   { box-shadow: 0 0 0 2px var(--accent-pink); }
+  .stat-card.teal.active-filter   { box-shadow: 0 0 0 2px var(--accent-teal); }
   .stat-card::before {
     content:''; position:absolute; inset:0;
     opacity: 0.06;
@@ -631,10 +640,10 @@
 
     <!-- Stats row -->
     <div class="stats-row" id="stats-row">
-      <div class="stat-card blue"><div class="stat-num" id="st-total">--</div><div class="stat-label">Total Tasks</div></div>
-      <div class="stat-card purple"><div class="stat-num" id="st-inprog">--</div><div class="stat-label">In Progress</div></div>
-      <div class="stat-card pink"><div class="stat-num" id="st-overdue">--</div><div class="stat-label">Overdue</div></div>
-      <div class="stat-card teal"><div class="stat-num" id="st-done">--</div><div class="stat-label">Done</div></div>
+      <div class="stat-card blue"   data-statfilter="all"        title="Show all tasks"><div class="stat-num" id="st-total">--</div><div class="stat-label">Total Tasks</div></div>
+      <div class="stat-card purple" data-statfilter="in-progress" title="Show in-progress tasks"><div class="stat-num" id="st-inprog">--</div><div class="stat-label">In Progress</div></div>
+      <div class="stat-card pink"   data-statfilter="overdue"    title="Show overdue tasks"><div class="stat-num" id="st-overdue">--</div><div class="stat-label">Overdue</div></div>
+      <div class="stat-card teal"   data-statfilter="done"       title="Show completed tasks"><div class="stat-num" id="st-done">--</div><div class="stat-label">Done</div></div>
     </div>
 
     <!-- Add task form -->
@@ -683,39 +692,8 @@
       <span class="task-count" id="task-count"></span>
     </div>
 
-    <!-- Color legend -->
-    <div class="color-legend" style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px;align-items:center">
-      <span style="font-size:11px;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);font-weight:500;margin-right:4px">Color Key:</span>
-      <span style="display:flex;align-items:center;gap:5px;font-size:12px">
-        <span style="display:flex;gap:3px">
-          <span style="width:14px;height:14px;border-radius:3px;background:var(--amanuel-todo);border:1px solid rgba(0,0,0,0.1)"></span>
-          <span style="width:14px;height:14px;border-radius:3px;background:var(--amanuel-inprog);border:1px solid rgba(0,0,0,0.1)"></span>
-          <span style="width:14px;height:14px;border-radius:3px;background:var(--amanuel-done);border:1px solid rgba(0,0,0,0.1)"></span>
-        </span>Amanuel
-      </span>
-      <span style="display:flex;align-items:center;gap:5px;font-size:12px">
-        <span style="display:flex;gap:3px">
-          <span style="width:14px;height:14px;border-radius:3px;background:var(--junaid-todo);border:1px solid rgba(0,0,0,0.1)"></span>
-          <span style="width:14px;height:14px;border-radius:3px;background:var(--junaid-inprog);border:1px solid rgba(0,0,0,0.1)"></span>
-          <span style="width:14px;height:14px;border-radius:3px;background:var(--junaid-done);border:1px solid rgba(0,0,0,0.1)"></span>
-        </span>Junaid
-      </span>
-      <span style="display:flex;align-items:center;gap:5px;font-size:12px">
-        <span style="display:flex;gap:3px">
-          <span style="width:14px;height:14px;border-radius:3px;background:var(--carmen-todo);border:1px solid rgba(0,0,0,0.1)"></span>
-          <span style="width:14px;height:14px;border-radius:3px;background:var(--carmen-inprog);border:1px solid rgba(0,0,0,0.1)"></span>
-          <span style="width:14px;height:14px;border-radius:3px;background:var(--carmen-done);border:1px solid rgba(0,0,0,0.1)"></span>
-        </span>Carmen
-      </span>
-      <span style="display:flex;align-items:center;gap:5px;font-size:12px">
-        <span style="display:flex;gap:3px">
-          <span style="width:14px;height:14px;border-radius:3px;background:var(--steve-todo);border:1px solid rgba(0,0,0,0.1)"></span>
-          <span style="width:14px;height:14px;border-radius:3px;background:var(--steve-inprog);border:1px solid rgba(0,0,0,0.1)"></span>
-          <span style="width:14px;height:14px;border-radius:3px;background:var(--steve-done);border:1px solid rgba(0,0,0,0.1)"></span>
-        </span>Steve
-      </span>
-      <span style="font-size:11px;color:var(--muted);margin-left:8px">← darker = Not Started &nbsp;·&nbsp; lighter = Completed →</span>
-    </div>
+    <!-- Color legend (interactive) -->
+    <div class="color-legend" id="color-legend" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;align-items:center"></div>
 
     <div class="bulk-bar" id="bulk-bar">
       <span id="bulk-count">0 tasks selected</span>
@@ -1026,6 +1004,8 @@ function setSyncStatus(state) {
 // -------- State --------
 let STORE = { tasks: [], deletedTasks: [], nextId: 1, users: ['Amanuel','Junaid','Carmen','Steve'], emails: {} };
 let editingId = null;
+let assigneeFilter = null; // { name, status } or null
+let statFilter = null;     // 'all' | 'in-progress' | 'overdue' | 'done' | null
 
 // -------- Page switching --------
 function switchPage(name) {
@@ -1055,18 +1035,22 @@ function updateStats() {
 // -------- Render task list --------
 function renderTasks() {
   const q = (document.getElementById('filter').value || '').toLowerCase();
-  const sf = document.getElementById('statusFilter').value;
+  const sf = assigneeFilter && !assigneeFilter.overdue ? assigneeFilter.status : document.getElementById('statusFilter').value;
   const pf = document.getElementById('priorityFilter').value;
+  const af = assigneeFilter && !assigneeFilter.overdue ? assigneeFilter.name : '';
   const list = STORE.tasks
     .filter(t =>
       (!sf || t.status === sf) &&
       (!pf || t.priority === pf) &&
+      (!af || (t.assignee || '').toLowerCase() === af.toLowerCase()) &&
+      (!(assigneeFilter && assigneeFilter.overdue) || isOverdue(t)) &&
+      // stat card filter
+      (!statFilter || statFilter === 'all' ||
+        (statFilter === 'overdue' ? isOverdue(t) : t.status === statFilter)
+      ) &&
       (!q || (t.title + ' ' + (t.assignee || '') + ' ' + (t.description || '')).toLowerCase().includes(q))
     )
-    .sort((a, b) => {
-      const pOrd = { high: 0, medium: 1, low: 2 };
-      return (pOrd[a.priority] - pOrd[b.priority]) || (a.due || '').localeCompare(b.due || '');
-    });
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 
   document.getElementById('task-count').textContent = list.length + ' task' + (list.length !== 1 ? 's' : '');
   const el = document.getElementById('tasks-list');
@@ -1081,7 +1065,12 @@ function renderTasks() {
 
   list.forEach(t => {
     const card = document.createElement('div');
+    const overdueCard = isOverdue(t);
     card.className = `task-card priority-${t.priority}`;
+    if (overdueCard) {
+      card.style.border = '3px solid var(--high)';
+      card.style.boxShadow = '0 0 0 1px rgba(229,62,94,0.18), 0 4px 16px rgba(229,62,94,0.13)';
+    }
     const ak = assigneeKey[t.assignee];
     const sk = statusKey[t.status] || 'todo';
     if (ak) {
@@ -1153,7 +1142,171 @@ function renderTasks() {
 
 function render() {
   updateStats();
+  updateStatCardHighlight();
+  renderLegend();
   renderTasks();
+}
+
+// -------- Interactive color legend --------
+const LEGEND_CONFIG = [
+  { name: 'Amanuel', key: 'amanuel', colors: ['#a5b4fc','#c7d2fe','#e0e7ff'] },
+  { name: 'Junaid',  key: 'junaid',  colors: ['#6ee7b7','#a7f3d0','#d1fae5'] },
+  { name: 'Carmen',  key: 'carmen',  colors: ['#fca5a5','#fecaca','#fee2e2'] },
+  { name: 'Steve',   key: 'steve',   colors: ['#fcd34d','#fde68a','#fef3c7'] },
+];
+const LEGEND_STATUSES = ['todo', 'in-progress', 'done'];
+const LEGEND_LABELS   = ['To Do', 'In Progress', 'Done'];
+
+function renderLegend() {
+  const el = document.getElementById('color-legend');
+  if (!el) return;
+  el.innerHTML = '';
+
+  // Label
+  const lbl = document.createElement('span');
+  lbl.style.cssText = 'font-size:11px;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);font-weight:500;margin-right:4px;white-space:nowrap';
+  lbl.textContent = 'Color Key:';
+  el.appendChild(lbl);
+
+  LEGEND_CONFIG.forEach(({ name, colors }) => {
+    const tasks = STORE.tasks.filter(t => (t.assignee || '') === name);
+    const counts = {
+      'todo':        tasks.filter(t => t.status === 'todo').length,
+      'in-progress': tasks.filter(t => t.status === 'in-progress').length,
+      'done':        tasks.filter(t => t.status === 'done').length,
+    };
+
+    // Wrapper chip
+    const chip = document.createElement('span');
+    const isActiveName = assigneeFilter && !assigneeFilter.overdue && assigneeFilter.name === name && !assigneeFilter.status;
+    chip.style.cssText = `
+      display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;
+      padding:4px 10px 4px 6px;border-radius:20px;cursor:pointer;user-select:none;
+      border:2px solid ${isActiveName ? 'rgba(0,0,0,0.25)' : 'transparent'};
+      background:${isActiveName ? 'rgba(0,0,0,0.06)' : 'transparent'};
+      transition:background 0.15s,border-color 0.15s;
+    `;
+    chip.title = `Click to filter by ${name}`;
+
+    // Three colour swatches (each clickable by status)
+    const swatchWrap = document.createElement('span');
+    swatchWrap.style.cssText = 'display:flex;gap:3px';
+
+    LEGEND_STATUSES.forEach((status, i) => {
+      const swatch = document.createElement('span');
+      const isActiveStatus = assigneeFilter && !assigneeFilter.overdue && assigneeFilter.name === name && assigneeFilter.status === status;
+      swatch.style.cssText = `
+        width:16px;height:16px;border-radius:4px;background:${colors[i]};
+        border:2px solid ${isActiveStatus ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.12)'};
+        cursor:pointer;position:relative;flex-shrink:0;
+        transition:transform 0.12s,border-color 0.12s;
+        ${isActiveStatus ? 'transform:scale(1.2);' : ''}
+      `;
+      swatch.title = `${name} · ${LEGEND_LABELS[i]} (${counts[status]})`;
+
+      // Count badge inside swatch (only when nonzero)
+      if (counts[status] > 0) {
+        swatch.style.position = 'relative';
+        // Show count as tooltip only — keep swatch clean
+      }
+
+      swatch.addEventListener('click', e => {
+        e.stopPropagation();
+        if (assigneeFilter && assigneeFilter.name === name && assigneeFilter.status === status) {
+          assigneeFilter = null;
+        } else {
+          assigneeFilter = { name, status };
+          // Clear the dropdown status filter so they don't double-filter
+          document.getElementById('statusFilter').value = '';
+        }
+        renderLegend();
+        renderTasks();
+      });
+      swatchWrap.appendChild(swatch);
+    });
+
+    chip.appendChild(swatchWrap);
+
+    // Name label (click = filter by person, all statuses)
+    const nameLbl = document.createElement('span');
+    nameLbl.textContent = name;
+    chip.appendChild(nameLbl);
+
+    chip.addEventListener('click', () => {
+      if (assigneeFilter && !assigneeFilter.overdue && assigneeFilter.name === name && !assigneeFilter.status) {
+        assigneeFilter = null;
+      } else {
+        assigneeFilter = { name, status: '' };
+        document.getElementById('statusFilter').value = '';
+      }
+      renderLegend();
+      renderTasks();
+    });
+
+    el.appendChild(chip);
+  });
+
+  // ---- Overdue swatch ----
+  const overdueCount = STORE.tasks.filter(isOverdue).length;
+  const isOverdueActive = assigneeFilter && assigneeFilter.overdue;
+  const overdueChip = document.createElement('span');
+  overdueChip.style.cssText = `
+    display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;
+    padding:4px 10px 4px 6px;border-radius:20px;cursor:pointer;user-select:none;
+    border:2px solid ${isOverdueActive ? 'var(--high)' : 'rgba(229,62,94,0.3)'};
+    background:${isOverdueActive ? 'rgba(229,62,94,0.12)' : 'transparent'};
+    color:var(--high);
+    transition:background 0.15s,border-color 0.15s;
+    margin-left:6px;
+  `;
+  overdueChip.title = 'Click to show only overdue tasks';
+  const overdueBox = document.createElement('span');
+  overdueBox.style.cssText = `
+    width:16px;height:16px;border-radius:4px;flex-shrink:0;
+    background:rgba(229,62,94,0.18);
+    border:2px solid ${isOverdueActive ? 'var(--high)' : 'rgba(229,62,94,0.5)'};
+    ${isOverdueActive ? 'transform:scale(1.15);' : ''}
+    display:inline-block;
+  `;
+  overdueChip.appendChild(overdueBox);
+  const overdueLbl = document.createElement('span');
+  overdueLbl.textContent = `Overdue${overdueCount > 0 ? ' (' + overdueCount + ')' : ''}`;
+  overdueChip.appendChild(overdueLbl);
+  overdueChip.addEventListener('click', () => {
+    if (assigneeFilter && assigneeFilter.overdue) {
+      assigneeFilter = null;
+    } else {
+      assigneeFilter = { overdue: true };
+      document.getElementById('statusFilter').value = '';
+    }
+    renderLegend();
+    renderTasks();
+  });
+  if (overdueCount > 0 || isOverdueActive) el.appendChild(overdueChip);
+
+  // Active filter pill + clear button
+  if (assigneeFilter) {
+    const pill = document.createElement('span');
+    pill.style.cssText = `
+      display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;
+      background:${assigneeFilter.overdue ? 'var(--high)' : 'var(--accent-blue)'};color:#fff;border-radius:20px;padding:3px 10px;
+      margin-left:6px;cursor:pointer;user-select:none;
+    `;
+    const statusLabel = { 'todo': 'To Do', 'in-progress': 'In Progress', 'done': 'Done', '': 'All' };
+    const pillText = assigneeFilter.overdue
+      ? 'Overdue'
+      : assigneeFilter.name + (assigneeFilter.status ? ` · ${statusLabel[assigneeFilter.status]}` : '');
+    pill.innerHTML = `${pillText} <span style="font-size:14px;line-height:1;opacity:0.8">×</span>`;
+    pill.title = 'Clear filter';
+    pill.addEventListener('click', () => { assigneeFilter = null; renderLegend(); renderTasks(); });
+    el.appendChild(pill);
+  }
+
+  // Hint text
+  const hint = document.createElement('span');
+  hint.style.cssText = 'font-size:11px;color:var(--muted);margin-left:4px;white-space:nowrap';
+  hint.innerHTML = '← darker = Not Started &nbsp;·&nbsp; lighter = Completed →';
+  el.appendChild(hint);
 }
 
 // -------- Add task --------
@@ -1261,6 +1414,40 @@ document.getElementById('refresh').addEventListener('click', async () => {
 document.getElementById('nav-tasks').addEventListener('click', () => switchPage('tasks'));
 document.getElementById('nav-report').addEventListener('click', () => switchPage('report'));
 document.getElementById('nav-settings').addEventListener('click', () => switchPage('settings'));
+
+// -------- Stat card click filtering --------
+function updateStatCardHighlight() {
+  document.querySelectorAll('.stat-card[data-statfilter]').forEach(card => {
+    card.classList.toggle('active-filter', card.dataset.statfilter === statFilter);
+  });
+}
+
+document.querySelectorAll('.stat-card[data-statfilter]').forEach(card => {
+  card.addEventListener('click', () => {
+    const f = card.dataset.statfilter;
+    if (statFilter === f) {
+      statFilter = null; // toggle off
+    } else {
+      statFilter = f;
+      // Clear conflicting filters
+      if (f === 'overdue') {
+        assigneeFilter = null;
+      } else if (f !== 'all') {
+        document.getElementById('statusFilter').value = '';
+        if (assigneeFilter && assigneeFilter.overdue) assigneeFilter = null;
+      } else {
+        // "all" — reset everything
+        assigneeFilter = null;
+        document.getElementById('statusFilter').value = '';
+      }
+    }
+    updateStatCardHighlight();
+    renderLegend();
+    renderTasks();
+    // Scroll to task list
+    document.getElementById('tasks-list').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
 
 document.getElementById('filter').addEventListener('input', renderTasks);
 document.getElementById('statusFilter').addEventListener('change', renderTasks);
