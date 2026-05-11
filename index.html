@@ -425,6 +425,46 @@
   }
   .btn-bulk-del:hover { opacity: 0.85; }
 
+  .btn-arc:hover { color: var(--accent-amber); border-color: var(--accent-amber); background: rgba(245,158,11,0.08); }
+
+  /* ---------- ARCHIVED TASKS ---------- */
+  #archived-list { display: flex; flex-direction: column; gap: 10px; }
+
+  .task-card.archived-card {
+    opacity: 0.6;
+    background: #f0f4ff !important;
+    border-color: rgba(120,128,200,0.25) !important;
+    box-shadow: none !important;
+  }
+  .task-card.archived-card .task-title {
+    text-decoration: line-through; color: var(--muted);
+  }
+  .badge-archived {
+    background: rgba(120,128,168,0.18); color: var(--muted); font-style: italic;
+  }
+
+  .archived-section-hdr {
+    display: flex; align-items: center; gap: 8px;
+    font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
+    margin: 28px 0 10px; cursor: pointer; user-select: none; width: fit-content;
+  }
+  .archived-section-hdr:hover { color: var(--text); }
+  .archived-section-hdr .arc-chevron { transition: transform 0.2s; }
+  .archived-section-hdr.open .arc-chevron { transform: rotate(90deg); }
+
+  .btn-show-arc {
+    background: var(--surface2); border: 1px solid var(--border); color: var(--muted);
+    border-radius: var(--radius-sm); padding: 9px 14px; cursor: pointer;
+    font-size: 13px; font-family: 'DM Sans', sans-serif; transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .btn-show-arc:hover { color: var(--text); }
+  .btn-show-arc.active {
+    color: var(--accent-amber); border-color: rgba(245,158,11,0.4);
+    background: rgba(245,158,11,0.07);
+  }
+
   /* scrollbar */
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -689,6 +729,7 @@
       </label>
       <button class="btn-refresh" id="refresh">↻ Refresh</button>
       <button class="btn-export" id="export">⬇ Export Excel</button>
+      <button class="btn-show-arc" id="show-arc-btn" onclick="toggleShowArchived()" title="Show/hide archived tasks">🗂 Archived</button>
       <span class="task-count" id="task-count"></span>
     </div>
 
@@ -700,6 +741,16 @@
       <button class="btn-bulk-del" id="bulk-delete" style="display:none">🗑 Delete Selected</button>
     </div>
     <div id="tasks-list"></div>
+
+    <!-- Archived tasks section -->
+    <div id="archived-section" style="display:none">
+      <div class="archived-section-hdr" id="archived-section-hdr" onclick="toggleArchivedCollapse()">
+        <span class="arc-chevron">▶</span>
+        <span>Archived Tasks</span>
+        <span id="archived-count-badge" style="background:rgba(120,128,168,0.18);color:var(--muted);font-size:11px;padding:2px 9px;border-radius:20px;font-weight:400;margin-left:4px">0</span>
+      </div>
+      <div id="archived-list" style="display:none"></div>
+    </div>
   </div>
 
   <!-- ===== REPORT PAGE ===== -->
@@ -881,11 +932,12 @@ async function loadStore() {
     const j = await res.json();
     console.log('[PMICU] Loaded record:', JSON.stringify(j.record).slice(0, 200));
     const data = j.record || {};
-    if (!data.tasks)        data.tasks        = [];
-    if (!data.deletedTasks) data.deletedTasks = [];
-    if (!data.nextId)       data.nextId       = 1;
-    if (!data.users)        data.users        = ['Amanuel','Junaid','Carmen','Steve'];
-    if (!data.emails)       data.emails       = {};
+    if (!data.tasks)         data.tasks         = [];
+    if (!data.deletedTasks)  data.deletedTasks  = [];
+    if (!data.archivedTasks) data.archivedTasks = [];
+    if (!data.nextId)        data.nextId        = 1;
+    if (!data.users)         data.users         = ['Amanuel','Junaid','Carmen','Steve'];
+    if (!data.emails)        data.emails        = {};
     setSyncStatus('ok');
     return data;
   } catch (e) {
@@ -912,11 +964,12 @@ async function _doSave(localStore, changeType, payload) {
       if (res.ok) {
         const j = await res.json();
         serverStore = j.record || {};
-        if (!serverStore.tasks)        serverStore.tasks        = [];
-        if (!serverStore.deletedTasks) serverStore.deletedTasks = [];
-        if (!serverStore.nextId)       serverStore.nextId       = 1;
-        if (!serverStore.users)        serverStore.users        = ['Amanuel','Junaid','Carmen','Steve'];
-        if (!serverStore.emails)       serverStore.emails       = {};
+        if (!serverStore.tasks)         serverStore.tasks         = [];
+        if (!serverStore.deletedTasks)  serverStore.deletedTasks  = [];
+        if (!serverStore.archivedTasks) serverStore.archivedTasks = [];
+        if (!serverStore.nextId)        serverStore.nextId        = 1;
+        if (!serverStore.users)         serverStore.users         = ['Amanuel','Junaid','Carmen','Steve'];
+        if (!serverStore.emails)        serverStore.emails        = {};
       }
     } catch { serverStore = null; }
 
@@ -948,7 +1001,11 @@ async function _doSave(localStore, changeType, payload) {
  * This is the merge logic that makes concurrent edits safe.
  */
 function mergeChange(base, changeType, payload) {
-  const merged = { ...base, tasks: [...base.tasks] };
+  const merged = {
+    ...base,
+    tasks:         [...(base.tasks         || [])],
+    archivedTasks: [...(base.archivedTasks || [])],
+  };
   if (changeType === 'add') {
     // Avoid duplicates if auto-refresh already pulled in this task
     if (!merged.tasks.find(t => t.id === payload.id)) {
@@ -966,6 +1023,23 @@ function mergeChange(base, changeType, payload) {
       if (!merged.deletedTasks) merged.deletedTasks = [];
       merged.deletedTasks.push({ ...deleted, deletedAt: new Date().toISOString(), deletedBy: getMyName() || 'Amanuel' });
     }
+  } else if (changeType === 'archive') {
+    const task = merged.tasks.find(t => t.id === payload);
+    if (task) {
+      merged.tasks = merged.tasks.filter(t => t.id !== payload);
+      merged.archivedTasks.push({ ...task, archivedAt: new Date().toISOString(), archivedBy: getMyName() || 'Amanuel' });
+    }
+  } else if (changeType === 'unarchive') {
+    const task = merged.archivedTasks.find(t => t.id === payload);
+    if (task) {
+      merged.archivedTasks = merged.archivedTasks.filter(t => t.id !== payload);
+      const { archivedAt, archivedBy, ...restored } = task;
+      restored.updatedAt = new Date().toISOString();
+      restored.updatedBy = getMyName() || 'Amanuel';
+      merged.tasks.push(restored);
+    }
+  } else if (changeType === 'deleteArchived') {
+    merged.archivedTasks = merged.archivedTasks.filter(t => t.id !== payload);
   } else if (changeType === 'addUser') {
     if (!merged.users) merged.users = ['Amanuel','Junaid','Carmen','Steve'];
     if (!merged.users.includes(payload)) merged.users.push(payload);
@@ -1002,10 +1076,12 @@ function setSyncStatus(state) {
 }
 
 // -------- State --------
-let STORE = { tasks: [], deletedTasks: [], nextId: 1, users: ['Amanuel','Junaid','Carmen','Steve'], emails: {} };
+let STORE = { tasks: [], deletedTasks: [], archivedTasks: [], nextId: 1, users: ['Amanuel','Junaid','Carmen','Steve'], emails: {} };
 let editingId = null;
 let assigneeFilter = null; // { name, status } or null
 let statFilter = null;     // 'all' | 'in-progress' | 'overdue' | 'done' | null
+let showArchived = false;
+let archivedCollapsed = true;
 
 // -------- Page switching --------
 function switchPage(name) {
@@ -1100,7 +1176,7 @@ function renderTasks() {
           <option value="done" ${t.status==='done'?'selected':''}>Done</option>
         </select>
         <button class="btn-icon" data-id="${t.id}" data-action="edit" title="Edit">✏️</button>
-        ${getMyName() === 'Amanuel' ? `<button class="btn-icon btn-del" data-id="${t.id}" data-action="del" title="Delete">🗑</button>` : ''}
+        ${getMyName() === 'Amanuel' ? `<button class="btn-icon btn-arc" data-id="${t.id}" data-action="arc" title="Archive task">📦</button><button class="btn-icon btn-del" data-id="${t.id}" data-action="del" title="Delete">🗑</button>` : ''}
       </div>
     `;
     el.appendChild(card);
@@ -1133,6 +1209,8 @@ function renderTasks() {
         if (getMyName() !== 'Amanuel') { alert('Only Amanuel can delete tasks.'); return; }
         if (!confirm('Delete this task?')) return;
         await saveStore(STORE, 'delete', id);
+      } else if (b.dataset.action === 'arc') {
+        await archiveTask(id);
       } else {
         openModal(id);
       }
@@ -1140,11 +1218,104 @@ function renderTasks() {
   });
 }
 
+// -------- Archive actions --------
+function toggleShowArchived() {
+  showArchived = !showArchived;
+  document.getElementById('show-arc-btn').classList.toggle('active', showArchived);
+  const arcSection = document.getElementById('archived-section');
+  arcSection.style.display = showArchived ? 'block' : 'none';
+  document.getElementById('archived-count-badge').textContent = (STORE.archivedTasks || []).length;
+  if (showArchived) renderArchivedTasks();
+}
+
+function toggleArchivedCollapse() {
+  archivedCollapsed = !archivedCollapsed;
+  const hdr  = document.getElementById('archived-section-hdr');
+  const list = document.getElementById('archived-list');
+  hdr.classList.toggle('open', !archivedCollapsed);
+  list.style.display = archivedCollapsed ? 'none' : 'flex';
+  if (!archivedCollapsed) renderArchivedTasks();
+}
+
+async function archiveTask(id) {
+  if (getMyName() !== 'Amanuel') { showToast('🔒 Only Amanuel can archive tasks'); return; }
+  if (!confirm('Archive this task? It will remain visible in the Archived section.')) return;
+  await saveStore(STORE, 'archive', id);
+  if (showArchived) renderArchivedTasks();
+  showToast('📦 Task archived');
+}
+
+async function unarchiveTask(id) {
+  if (getMyName() !== 'Amanuel') { showToast('🔒 Only Amanuel can restore tasks'); return; }
+  await saveStore(STORE, 'unarchive', id);
+  if (showArchived) renderArchivedTasks();
+  showToast('♻️ Task restored to active');
+}
+
+function renderArchivedTasks() {
+  const archived = (STORE.archivedTasks || [])
+    .slice()
+    .sort((a, b) => (b.archivedAt || '').localeCompare(a.archivedAt || ''));
+  document.getElementById('archived-count-badge').textContent = archived.length;
+
+  const el = document.getElementById('archived-list');
+  if (!archived.length) {
+    el.innerHTML = `<div class="empty-state" style="padding:30px 20px"><div class="emoji" style="font-size:28px;margin-bottom:8px">🗂️</div>No archived tasks</div>`;
+    return;
+  }
+  const isAdm = getMyName() === 'Amanuel';
+  const statusLabel = { 'todo': 'To Do', 'in-progress': 'In Progress', 'done': 'Done' };
+  el.innerHTML = '';
+  archived.forEach(t => {
+    const card = document.createElement('div');
+    card.className = `task-card priority-${t.priority || 'low'} archived-card`;
+    const arcDate = t.archivedAt ? t.archivedAt.slice(0, 10) : '';
+    const dueBadge = t.due ? `<span class="badge badge-due">📅 ${t.due}</span>` : '';
+    const estBadge = t.estTime != null ? `<span class="badge" style="background:rgba(139,79,245,0.12);color:var(--accent-purple)">⏱ ${t.estTime}h</span>` : '';
+    const adminBtns = isAdm ? `
+      <button class="btn-icon" data-id="${t.id}" data-action="unarchive" title="Restore to active" style="font-size:12px">♻️ Restore</button>
+      <button class="btn-icon btn-del" data-id="${t.id}" data-action="del-arc" title="Delete permanently" style="font-size:12px">🗑</button>` : '';
+    card.innerHTML = `
+      <div class="task-main">
+        <div class="task-title">${esc(t.title)}</div>
+        ${t.description ? `<div class="task-desc">${esc(t.description)}</div>` : ''}
+        <div class="task-meta">
+          ${t.assignee ? `<span class="badge badge-assignee">👤 ${esc(t.assignee)}</span>` : ''}
+          <span class="badge badge-${t.priority || 'low'}">${(t.priority||'low').charAt(0).toUpperCase()+(t.priority||'low').slice(1)}</span>
+          ${dueBadge}${estBadge}
+          <span class="badge badge-archived">📦 Archived ${arcDate}${t.archivedBy ? ' by ' + esc(t.archivedBy) : ''}</span>
+          ${t.status ? `<span class="badge" style="background:rgba(100,110,180,0.1);color:var(--muted);font-size:10px">${statusLabel[t.status]||t.status}</span>` : ''}
+        </div>
+      </div>
+      <div class="task-actions" style="flex-shrink:0">${adminBtns}</div>
+    `;
+    el.appendChild(card);
+    card.querySelectorAll('[data-action]').forEach(b => {
+      b.addEventListener('click', async () => {
+        const id = Number(b.dataset.id);
+        if (b.dataset.action === 'unarchive') {
+          await unarchiveTask(id);
+        } else if (b.dataset.action === 'del-arc') {
+          if (!confirm('Permanently delete this archived task? This cannot be undone.')) return;
+          await saveStore(STORE, 'deleteArchived', id);
+          renderArchivedTasks();
+          showToast('🗑 Archived task permanently deleted');
+        }
+      });
+    });
+  });
+}
+
+
 function render() {
   updateStats();
   updateStatCardHighlight();
   renderLegend();
   renderTasks();
+  if (showArchived) {
+    document.getElementById('archived-count-badge').textContent = (STORE.archivedTasks || []).length;
+    if (!archivedCollapsed) renderArchivedTasks();
+  }
 }
 
 // -------- Interactive color legend --------
@@ -1342,8 +1513,8 @@ document.getElementById('add').addEventListener('click', async () => {
 document.getElementById('export').addEventListener('click', () => {
   const statusLabel = { 'todo': 'To Do', 'in-progress': 'In Progress', 'done': 'Done' };
 
-  const taskToRow = (t, isDeleted = false) => ({
-    'Status':            isDeleted ? '🗑 Deleted' : (statusLabel[t.status] || t.status),
+  const taskToRow = (t, rowType = 'active') => ({
+    'Status':            rowType === 'deleted' ? '🗑 Deleted' : rowType === 'archived' ? '📦 Archived' : (statusLabel[t.status] || t.status),
     'Title':             t.title || '',
     'Description':       t.description || '',
     'Assignee':          t.assignee || 'Unassigned',
@@ -1354,34 +1525,39 @@ document.getElementById('export').addEventListener('click', () => {
     'Last Updated':      t.updatedAt ? t.updatedAt.slice(0, 10) : '',
     'Status Changed':    t.statusChangedAt ? t.statusChangedAt.slice(0, 10) : '',
     'Updated By':        t.updatedBy || '',
-    'Deleted On':        isDeleted && t.deletedAt ? t.deletedAt.slice(0, 10) : '',
-    'Deleted By':        isDeleted ? (t.deletedBy || '') : '',
+    'Archived On':       rowType === 'archived' && t.archivedAt ? t.archivedAt.slice(0, 10) : '',
+    'Archived By':       rowType === 'archived' ? (t.archivedBy || '') : '',
+    'Deleted On':        rowType === 'deleted' && t.deletedAt ? t.deletedAt.slice(0, 10) : '',
+    'Deleted By':        rowType === 'deleted' ? (t.deletedBy || '') : '',
   });
 
-  const activeRows  = STORE.tasks.map(t => taskToRow(t, false));
-  const deletedRows = (STORE.deletedTasks || []).map(t => taskToRow(t, true));
-  const allRows     = [...activeRows, ...deletedRows];
+  const activeRows   = STORE.tasks.map(t => taskToRow(t, 'active'));
+  const archivedRows = (STORE.archivedTasks || []).map(t => taskToRow(t, 'archived'));
+  const deletedRows  = (STORE.deletedTasks  || []).map(t => taskToRow(t, 'deleted'));
+  const allRows      = [...activeRows, ...archivedRows, ...deletedRows];
 
   const ws = XLSX.utils.json_to_sheet(allRows);
   ws['!cols'] = [
     { wch: 14 }, { wch: 36 }, { wch: 48 }, { wch: 14 }, { wch: 10 },
-    { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 13 }, { wch: 14 }, { wch: 13 }, { wch: 12 }, { wch: 12 }
+    { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 13 }, { wch: 14 },
+    { wch: 13 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }
   ];
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Tasks');
 
   // Summary sheet
-  const active  = STORE.tasks;
-  const deleted = STORE.deletedTasks || [];
-  const total   = active.length;
-  const done    = active.filter(t => t.status === 'done').length;
-  const inprog  = active.filter(t => t.status === 'in-progress').length;
-  const todo    = active.filter(t => t.status === 'todo').length;
-  const high    = active.filter(t => t.priority === 'high').length;
-  const med     = active.filter(t => t.priority === 'medium').length;
-  const low     = active.filter(t => t.priority === 'low').length;
-  const overdue = active.filter(isOverdue).length;
+  const active   = STORE.tasks;
+  const archived = STORE.archivedTasks || [];
+  const deleted  = STORE.deletedTasks  || [];
+  const total    = active.length;
+  const done     = active.filter(t => t.status === 'done').length;
+  const inprog   = active.filter(t => t.status === 'in-progress').length;
+  const todo     = active.filter(t => t.status === 'todo').length;
+  const high     = active.filter(t => t.priority === 'high').length;
+  const med      = active.filter(t => t.priority === 'medium').length;
+  const low      = active.filter(t => t.priority === 'low').length;
+  const overdue  = active.filter(isOverdue).length;
 
   const summary = [
     ['PMICU Task Tracker -- Summary', ''],
@@ -1393,6 +1569,7 @@ document.getElementById('export').addEventListener('click', () => {
     ['In Progress', inprog],
     ['Done', done],
     ['Overdue', overdue],
+    ['Archived Tasks', archived.length],
     ['Deleted Tasks', deleted.length],
     [''],
     ['Priority', 'Count'],
@@ -1755,6 +1932,7 @@ function checkOverdueNotifications() {
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 7);
   const cutoffStr = cutoff.toISOString().slice(0, 10);
   const stale = STORE.tasks.filter(t => t.due && t.due <= cutoffStr && t.status !== 'done' && t.assignee && map[t.assignee]);
+  // STORE.tasks never contains archived tasks, so no extra filter needed
   if (!stale.length) return;
   // Show a banner with mailto links instead of auto-opening multiple windows
   const existing = document.getElementById('overdue-banner');
